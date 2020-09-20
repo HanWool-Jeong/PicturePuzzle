@@ -225,7 +225,7 @@ int main(void)
 			puzzles[i].puzObj->show();
 		}
 		// 퍼즐 섞기
-		//shuffle();
+		shuffle();
 
 		// 시간 측정
 		start = time(NULL);
