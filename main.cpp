@@ -1,10 +1,9 @@
+#define _CRT_SECURE_NO_WARNINGS
+
 #include <bangtal.h>
-#include <string>
 #include <cstring>
 #include <cstdio>
-#include <time.h>
-
-#define _CRT_SECURE_NO_WARNINGS
+#include <ctime>
 
 using namespace bangtal;
 
@@ -26,7 +25,6 @@ const int x_2 = x_1 + puzzle_size, y_2 = y_1 - puzzle_size;
 struct Position {
 	int x, y;
 };
-typedef struct Position Position;
 
 // 각 퍼즐조각마다 초기 좌표를 저장함
 Position position[num_of_puzzles] = {
@@ -46,7 +44,6 @@ struct Puzzle {
 	Position pos;
 	ObjectPtr puzObj;
 };
-typedef struct Puzzle Puzzle;
 
 // 퍼즐 목록
 Puzzle puzzles[num_of_puzzles];
@@ -112,6 +109,7 @@ bool check_alright()
 	return true;
 }
 
+// 쓴 시간을 메세지로 출력하는 함수
 void show_Time_Used(time_t time_used)
 {
 	int prev_time = 100000;
@@ -119,7 +117,7 @@ void show_Time_Used(time_t time_used)
 	// 프로젝트 폴더 내에 기록 텍스트문서를 연다
 	FILE* record;
 
-	if (fopen_s(&record, "record.txt", "r") == 0) {
+	if ((record = fopen("record.txt", "r")) != NULL) {
 		// 텍스트에서 이전 기록을 가져온다.
 		fscanf_s(record, "%d", &prev_time);
 		fclose(record);
@@ -129,31 +127,22 @@ void show_Time_Used(time_t time_used)
 		return;
 	}
 
-	char s1[100];
+	char str[100];		// 출력할 전체 문자열
+	char temp[100];		// 문자열 임시 저장소
 
-	// 걸린 시간 기록을 문자열로 변환
-	char t[10];
-	_ltoa_s(time_used, t, 10);
-
-	// 이전 기록보다 빨리했으면 새 기록을 텍스트에 쓴다.
 	if (time_used < prev_time) {
-		strcpy_s(s1, "최고기록 경신!");
-
-		if (fopen_s(&record, "record.txt", "w") == 0) {
+		strcpy(temp, "최고기록 경신!\n");
+		if ((record = fopen("record.txt", "r")) != NULL) {
 			// 쓰기
-			fprintf(record, "%s", t);
+			fprintf(record, "%lld", time_used);
 			fclose(record);
 		}
 	}
 	else {
-		strcpy_s(s1, "완성하였습니다!");
+		strcpy(temp, "완성하였습니다!\n");
 	}
-
-	strcat_s(s1, "\n걸린시간: ");
-	strcat_s(s1, t);
-	strcat_s(s1, "초");
-
-	showMessage(s1);
+	sprintf(str, "%s걸린시간: %lld초", temp, time_used);
+	showMessage(str);
 }
 
 // 퍼즐조각마다 마우스 콜백을 적용하는 함수
@@ -180,22 +169,13 @@ bool puzzle_mouseCallBack(ObjectPtr object, int x, int y, MouseAction action)
 	return true;
 }
 
-// 퍼즐들을 섞는 함수
-void shuffle()
-{
-	srand(time(NULL));
-
-	for (int i = 0; i < num_of_puzzles; i++) {
-		int random = rand() % 9;
-		position_swap(&puzzles[i], &puzzles[random]);
-		puzzle_swap(puzzles[i], puzzles[random]);
-	}
-}
-
 int main(void)
 {
 	setGameOption(GameOption::GAME_OPTION_INVENTORY_BUTTON, false);
 	setGameOption(GameOption::GAME_OPTION_MESSAGE_BOX_BUTTON, false);
+	
+	auto timer = Timer::create(0.1f);
+	int how_many_shuffle = 30;
 
 	scene = Scene::create("사진퍼즐게임", "images/kakao.jpg");
 	auto startButton = Object::create("images/start.png", scene, 550, 100);
@@ -224,14 +204,32 @@ int main(void)
 				continue;
 			puzzles[i].puzObj->show();
 		}
-		// 퍼즐 섞기
-		shuffle();
 
-		// 시간 측정
-		start = time(NULL);
+		// 퍼즐 섞기
+		timer->setOnTimerCallback([&](TimerPtr t)->bool {
+			if (how_many_shuffle < 0) {
+				start = time(NULL);	// 다 섞으면 시간 측정 시작
+				return true;
+			}
+
+			int random;
+			do {
+				random = rand() % num_of_puzzles;
+			} while (!isAdjacent(puzzles[random].pos, puzzles[invisible_puzzle_num].pos));
+			position_swap(&puzzles[random], &puzzles[invisible_puzzle_num]);
+			puzzle_swap(puzzles[random], puzzles[invisible_puzzle_num]);
+			
+			how_many_shuffle--;
+			timer->set(0.1f);
+			timer->start();
+			return true;
+		});
+		timer->start();
+
 		return true;
 	});
 
 	startGame(scene);
+
 	return 0;
 }
